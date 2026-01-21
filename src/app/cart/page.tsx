@@ -25,7 +25,7 @@ interface CartItemType {
 }
 
 export default function CartPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const [cartItems, setCartItems] = useState<CartItemType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,7 +56,7 @@ export default function CartPage() {
           : undefined,
         variantId: item.variant_id,
         productSlug: item.product?.slug,
-        categorySlug: item.product?.category?.slug,
+        categorySlug: undefined, // Category not included in cart API response
       }));
       setCartItems(items);
       hasPendingChangesRef.current = false;
@@ -101,7 +101,7 @@ export default function CartPage() {
         });
 
         if (correctedItems.length > 0) {
-          showToast("Một số sản phẩm đã được điều chỉnh do số lượng trong kho", "warning");
+          showToast("Một số sản phẩm đã được điều chỉnh do số lượng trong kho", "info");
           fetchCart(); // Refresh to get corrected quantities
         } else {
           hasPendingChangesRef.current = false;
@@ -135,7 +135,7 @@ export default function CartPage() {
     if (item && (!item.maxQuantity || item.quantity < item.maxQuantity)) {
       handleUpdateQuantity(id, item.quantity + 1);
     } else if (item && item.maxQuantity) {
-      showToast(`Chỉ còn ${item.maxQuantity} sản phẩm trong kho`, "warning");
+      showToast(`Chỉ còn ${item.maxQuantity} sản phẩm trong kho`, "info");
     }
   };
 

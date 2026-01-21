@@ -69,8 +69,10 @@ export interface DashboardStats {
 export interface Order {
   id: string;
   created_at: string;
+  placed_at?: string;
   status: string;
-  total_price: number;
+  total_price?: number;
+  total_amount?: number;
   shipping_address?: string;
   shipping_phone?: string;
   payment_method?: string;
@@ -84,6 +86,7 @@ export interface Order {
     avatar_url?: string;
   };
   items?: OrderItem[];
+  order_items?: OrderItem[];
 }
 
 export interface OrderItem {
@@ -102,7 +105,7 @@ export interface Article {
   id: string;
   title: string;
   slug: string;
-  excerpt?: string;
+  tags?: string[];
   content?: string;
   content_blocks?: ContentBlock[];
   featured_image?: string;
@@ -143,7 +146,7 @@ export interface Coupon {
   max_discount?: number;
   usage_limit?: number;
   usage_count: number;
-  start_date?: string;
+  starts_at?: string;
   expires_at?: string;
   is_active: boolean;
   created_at: string;
@@ -155,10 +158,13 @@ export interface User {
   email: string;
   full_name?: string;
   phone?: string;
+  phone_number?: string;
   avatar_url?: string;
   role: 'user' | 'admin';
   gender?: string;
   date_of_birth?: string;
+  is_enabled?: boolean;
+  is_chat_blocked?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -169,6 +175,16 @@ export interface AISettings {
   api_url: string;
   prompt: string;
   has_api_key?: boolean;
+}
+
+export interface APISettings {
+  id?: string;
+  key: string;  name: string;  model_name: string;
+  api_endpoint: string;
+  default_prompt: string | Record<string, any>; // Can be text or JSONB object
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ShopSettings {
@@ -213,7 +229,9 @@ export async function getAdminOrders(query?: PaginationQuery): Promise<Paginated
 
   const response = await authFetch(`${API_BASE_URL}/admin/orders?${params.toString()}`);
   if (!response.ok) {
-    throw new Error('Failed to fetch orders');
+    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+    console.error('Orders API Error:', errorData);
+    throw new Error(errorData.message || 'Failed to fetch orders');
   }
   return response.json();
 }
@@ -342,16 +360,40 @@ export async function deleteArticle(id: string): Promise<void> {
   }
 }
 
-export async function generateArticleContent(keyword: string, topic?: string): Promise<Partial<Article>> {
+export async function generateArticleContent(
+  keyword: string, 
+  topic?: string, 
+  customPrompt?: string | Record<string, any>
+): Promise<Partial<Article>> {
   const response = await authFetch(`${API_BASE_URL}/admin/articles/generate`, {
     method: 'POST',
-    body: JSON.stringify({ keyword, topic }),
+    body: JSON.stringify({ keyword, topic, customPrompt }),
   });
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Failed to generate content');
   }
-  return response.json();
+  const result = await response.json();
+  
+  // Normalize the response from backend format to frontend format
+  // Backend returns: { success: true, data: { title, body, slug, tags, meta: { meta_title, meta_description, seo_keywords } }, warnings: [] }
+  // Frontend expects: { title, tags, content_blocks, meta_title, meta_description, seo_keywords, ... }
+  
+  if (result.success && result.data) {
+    const { title, body, slug, tags, meta } = result.data;
+    return {
+      title,
+      slug,
+      tags: tags || [],
+      content_blocks: body ? [{ type: 'text' as const, content: body, level: 'p' as const }] : [],
+      meta_title: meta?.meta_title || '',
+      meta_description: meta?.meta_description || '',
+      seo_keywords: meta?.seo_keywords || '',
+    };
+  }
+  
+  // Fallback for legacy format (direct return)
+  return result;
 }
 
 export async function uploadArticleImage(file: File): Promise<{ url: string }> {
@@ -393,8 +435,8 @@ export async function getAdminCoupons(query?: PaginationQuery): Promise<Paginate
   return response.json();
 }
 
-export async function getAdminCoupon(id: string): Promise<Coupon> {
-  const response = await authFetch(`${API_BASE_URL}/admin/coupons/${id}`);
+export async function getAdminCoupon(code: string): Promise<Coupon> {
+  const response = await authFetch(`${API_BASE_URL}/admin/coupons/${code}`);
   if (!response.ok) {
     throw new Error('Failed to fetch coupon');
   }
@@ -413,8 +455,8 @@ export async function createCoupon(data: Partial<Coupon>): Promise<Coupon> {
   return response.json();
 }
 
-export async function updateCoupon(id: string, data: Partial<Coupon>): Promise<Coupon> {
-  const response = await authFetch(`${API_BASE_URL}/admin/coupons/${id}`, {
+export async function updateCoupon(code: string, data: Partial<Coupon>): Promise<Coupon> {
+  const response = await authFetch(`${API_BASE_URL}/admin/coupons/${code}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
@@ -425,8 +467,8 @@ export async function updateCoupon(id: string, data: Partial<Coupon>): Promise<C
   return response.json();
 }
 
-export async function deleteCoupon(id: string): Promise<void> {
-  const response = await authFetch(`${API_BASE_URL}/admin/coupons/${id}`, {
+export async function deleteCoupon(code: string): Promise<void> {
+  const response = await authFetch(`${API_BASE_URL}/admin/coupons/${code}`, {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -434,8 +476,8 @@ export async function deleteCoupon(id: string): Promise<void> {
   }
 }
 
-export async function toggleCouponStatus(id: string): Promise<Coupon> {
-  const response = await authFetch(`${API_BASE_URL}/admin/coupons/${id}/toggle`, {
+export async function toggleCouponStatus(code: string): Promise<Coupon> {
+  const response = await authFetch(`${API_BASE_URL}/admin/coupons/${code}/toggle`, {
     method: 'PATCH',
   });
   if (!response.ok) {
@@ -494,6 +536,50 @@ export async function updateUserRole(id: string, role: 'user' | 'admin'): Promis
   return response.json();
 }
 
+export async function toggleUserEnabled(id: string): Promise<User> {
+  const response = await authFetch(`${API_BASE_URL}/admin/users/${id}/toggle-enabled`, {
+    method: 'PATCH',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to toggle user enabled status');
+  }
+  return response.json();
+}
+
+export async function toggleUserChatBlock(id: string): Promise<User> {
+  const response = await authFetch(`${API_BASE_URL}/admin/users/${id}/toggle-chat-block`, {
+    method: 'PATCH',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to toggle user chat block status');
+  }
+  return response.json();
+}
+
+export async function softDeleteUser(id: string): Promise<User> {
+  const response = await authFetch(`${API_BASE_URL}/admin/users/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete user');
+  }
+  return response.json();
+}
+
+export async function getUserOrders(userId: string, query?: PaginationQuery): Promise<PaginatedResponse<Order>> {
+  const params = new URLSearchParams();
+  if (query?.page) params.append('page', query.page.toString());
+  if (query?.limit) params.append('limit', query.limit.toString());
+  if (query?.sort) params.append('sort', query.sort);
+  if (query?.order) params.append('order', query.order);
+
+  const response = await authFetch(`${API_BASE_URL}/admin/users/${userId}/orders?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch user orders');
+  }
+  return response.json();
+}
+
 // =============================================================================
 // SETTINGS
 // =============================================================================
@@ -548,8 +634,38 @@ export async function updateShopSettings(data: Partial<ShopSettings>): Promise<S
   return response.json();
 }
 
+// =============================================================================// API SETTINGS (api_settings table)
 // =============================================================================
-// CATEGORIES
+
+export async function getAPISettings(key: string = 'article_generation'): Promise<APISettings> {
+  const response = await authFetch(`${API_BASE_URL}/admin/settings/api/${key}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch API settings');
+  }
+  return response.json();
+}
+
+export async function updateAPISettings(key: string, data: Partial<APISettings>): Promise<{ message: string }> {
+  const response = await authFetch(`${API_BASE_URL}/admin/settings/api/${key}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update API settings');
+  }
+  return response.json();
+}
+
+export async function getAllAPISettings(): Promise<APISettings[]> {
+  const response = await authFetch(`${API_BASE_URL}/admin/settings/api`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch all API settings');
+  }
+  return response.json();
+}
+
+// =============================================================================// CATEGORIES
 // =============================================================================
 
 export interface Category {
@@ -713,6 +829,156 @@ export async function getPublicArticle(slug: string): Promise<Article> {
   const response = await fetch(`${API_BASE_URL}/articles/${slug}`);
   if (!response.ok) {
     throw new Error('Failed to fetch article');
+  }
+  return response.json();
+}
+
+// =============================================================================
+// ADMIN PRODUCTS
+// =============================================================================
+
+export interface ProductVariant {
+  id: string;
+  product_id: string;
+  sku?: string;
+  color?: string;
+  storage?: string;
+  price: number;
+  original_price?: number;
+  qty: number;
+  main_image?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  brand_id: number;
+  category_id: number;
+  meta_title?: string;
+  meta_description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  brand?: { id: number; name: string };
+  category?: { id: number; name: string };
+  default_variant?: ProductVariant;
+  variants?: ProductVariant[];
+}
+
+export async function getAdminProducts(query?: PaginationQuery): Promise<PaginatedResponse<Product>> {
+  const params = new URLSearchParams();
+  if (query?.page) params.append('page', query.page.toString());
+  if (query?.limit) params.append('limit', query.limit.toString());
+  if (query?.search) params.append('search', query.search);
+  if (query?.sort) params.append('sort', query.sort);
+  if (query?.order) params.append('order', query.order);
+
+  const response = await authFetch(`${API_BASE_URL}/admin/products?${params.toString()}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+    console.error('Products API Error:', errorData);
+    throw new Error(errorData.message || 'Failed to fetch products');
+  }
+  return response.json();
+}
+
+export async function getAdminProductDetail(id: string): Promise<Product> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products/${id}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch product detail');
+  }
+  return response.json();
+}
+
+export async function createProduct(data: Partial<Product>): Promise<Product> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to create product');
+  }
+  return response.json();
+}
+
+export async function updateProduct(id: string, data: Partial<Product>): Promise<Product> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update product');
+  }
+  return response.json();
+}
+
+export async function deleteProduct(id: string): Promise<{ message: string }> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to delete product');
+  }
+  return response.json();
+}
+
+export async function toggleProductActive(id: string): Promise<Product> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products/${id}/toggle-active`, {
+    method: 'PATCH',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to toggle product status');
+  }
+  return response.json();
+}
+
+export async function getProductVariants(productId: string): Promise<ProductVariant[]> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products/${productId}/variants`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch product variants');
+  }
+  return response.json();
+}
+
+export async function createProductVariant(productId: string, data: Partial<ProductVariant>): Promise<ProductVariant> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products/${productId}/variants`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to create variant');
+  }
+  return response.json();
+}
+
+export async function updateProductVariant(productId: string, variantId: string, data: Partial<ProductVariant>): Promise<ProductVariant> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products/${productId}/variants/${variantId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update variant');
+  }
+  return response.json();
+}
+
+export async function deleteProductVariant(productId: string, variantId: string): Promise<{ message: string }> {
+  const response = await authFetch(`${API_BASE_URL}/admin/products/${productId}/variants/${variantId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to delete variant');
   }
   return response.json();
 }

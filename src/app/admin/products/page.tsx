@@ -12,38 +12,15 @@ import {
   Loader2,
   ToggleLeft,
   ToggleRight,
-  Image as ImageIcon,
+  ImageIcon as ImageIcon,
 } from "lucide-react";
-
-interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  brand_id: number;
-  category_id: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  default_variant?: {
-    id: string;
-    price: number;
-    original_price: number;
-    qty: number;
-    main_image: string;
-  };
-  brand?: { id: number; name: string };
-  category?: { id: number; name: string };
-}
-
-interface PaginatedResponse {
-  data: Product[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-}
+import {
+  getAdminProducts,
+  toggleProductActive,
+  deleteProduct,
+  Product,
+} from "@/lib/adminApi";
+import toast from "react-hot-toast";
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -67,19 +44,16 @@ export default function ProductsPage() {
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      params.append("page", page.toString());
-      params.append("limit", limit.toString());
-      if (searchQuery) params.append("search", searchQuery);
-
-      const response = await fetch(`/api/admin/products?${params.toString()}`);
-      if (response.ok) {
-        const data: PaginatedResponse = await response.json();
-        setProducts(data.data);
-        setTotal(data.meta.total);
-      }
+      const response = await getAdminProducts({
+        page,
+        limit,
+        search: searchQuery,
+      });
+      setProducts(response.data);
+      setTotal(response.meta.total);
     } catch (error) {
       console.error("Error loading products:", error);
+      toast.error("Lỗi khi tải danh sách sản phẩm");
     } finally {
       setLoading(false);
     }
@@ -93,21 +67,18 @@ export default function ProductsPage() {
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
-      const response = await fetch(`/api/admin/products/${id}/toggle-active`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: !currentStatus }),
-      });
-
-      if (response.ok) {
-        setProducts((prev) =>
-          prev.map((p) =>
-            p.id === id ? { ...p, is_active: !currentStatus } : p
-          )
-        );
-      }
+      await toggleProductActive(id);
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === id ? { ...p, is_active: !currentStatus } : p
+        )
+      );
+      toast.success(
+        !currentStatus ? "Kích hoạt sản phẩm thành công" : "Ẩn sản phẩm thành công"
+      );
     } catch (error) {
       console.error("Error toggling product status:", error);
+      toast.error("Lỗi khi thay đổi trạng thái sản phẩm");
     }
   };
 
@@ -116,20 +87,15 @@ export default function ProductsPage() {
 
     try {
       setDeleting(true);
-      const response = await fetch(`/api/admin/products/${deleteId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setShowDeleteModal(false);
-        setDeleteId(null);
-        loadProducts();
-      } else {
-        alert("Không thể xóa sản phẩm");
-      }
-    } catch (error) {
+      await deleteProduct(deleteId);
+      toast.success("Xóa sản phẩm thành công");
+      setShowDeleteModal(false);
+      setDeleteId(null);
+      loadProducts();
+    } catch (error: unknown) {
       console.error("Error deleting product:", error);
-      alert("Lỗi khi xóa sản phẩm");
+      const errorMessage = error instanceof Error ? error.message : "Lỗi khi xóa sản phẩm";
+      toast.error(errorMessage);
     } finally {
       setDeleting(false);
     }

@@ -12,13 +12,21 @@ import {
   Loader2,
 } from "lucide-react";
 import BlockEditor from "@/components/admin/BlockEditor";
+import ArticlePromptEditor from "@/components/admin/ArticlePromptEditor";
 import {
   getAdminArticle,
   updateArticle,
   generateArticleContent,
   uploadArticleImage,
+  getAllAPISettings,
   ContentBlock,
 } from "@/lib/adminApi";
+import {
+  PromptTemplateJsonb,
+  DEFAULT_PROMPT_TEMPLATE,
+  isPromptTemplateJsonb,
+  mergeWithDefaults,
+} from "@/types/prompt-template";
 
 export default function EditArticlePage() {
   const router = useRouter();
@@ -29,6 +37,9 @@ export default function EditArticlePage() {
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
+  const [promptTemplate, setPromptTemplate] = useState<PromptTemplateJsonb>(DEFAULT_PROMPT_TEMPLATE);
+  const [defaultPromptTemplate, setDefaultPromptTemplate] = useState<PromptTemplateJsonb>(DEFAULT_PROMPT_TEMPLATE);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -45,7 +56,31 @@ export default function EditArticlePage() {
 
   useEffect(() => {
     loadArticle();
+    loadDefaultPrompt();
   }, [articleId]);
+
+  const loadDefaultPrompt = async () => {
+    try {
+      const apiSettings = await getAllAPISettings();
+      const articleSettings = apiSettings.find((s) => s.name === "article");
+      if (articleSettings && articleSettings.default_prompt) {
+        // Handle JSONB prompt template
+        if (isPromptTemplateJsonb(articleSettings.default_prompt)) {
+          const merged = mergeWithDefaults(articleSettings.default_prompt);
+          setDefaultPromptTemplate(merged);
+          setPromptTemplate(merged);
+        } else if (typeof articleSettings.default_prompt === 'object') {
+          // Object but missing some fields - merge with defaults
+          const merged = mergeWithDefaults(articleSettings.default_prompt as Partial<PromptTemplateJsonb>);
+          setDefaultPromptTemplate(merged);
+          setPromptTemplate(merged);
+        }
+        // If it's a string (legacy), keep using DEFAULT_PROMPT_TEMPLATE
+      }
+    } catch (error) {
+      console.error("Failed to load default prompt:", error);
+    }
+  };
 
   const loadArticle = async () => {
     try {
@@ -79,7 +114,8 @@ export default function EditArticlePage() {
 
     try {
       setGenerating(true);
-      const result = await generateArticleContent(keyword, topic);
+      // Send JSONB prompt template directly to backend
+      const result = await generateArticleContent(keyword, topic, promptTemplate);
 
       if (result.title) setTitle(result.title);
       if (result.excerpt) setExcerpt(result.excerpt);
@@ -216,7 +252,7 @@ export default function EditArticlePage() {
                 </p>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 mb-3">
               <input
                 type="text"
                 value={keyword}
@@ -237,6 +273,16 @@ export default function EditArticlePage() {
                 <span>{generating ? "Đang tạo..." : "Tạo lại"}</span>
               </button>
             </div>
+
+            {/* Prompt Editor Toggle */}
+            <ArticlePromptEditor
+              value={promptTemplate}
+              defaultTemplate={defaultPromptTemplate}
+              onChange={setPromptTemplate}
+              onReset={() => setPromptTemplate(defaultPromptTemplate)}
+              isExpanded={showPromptEditor}
+              onToggleExpand={() => setShowPromptEditor(!showPromptEditor)}
+            />
           </div>
 
           {/* Title */}

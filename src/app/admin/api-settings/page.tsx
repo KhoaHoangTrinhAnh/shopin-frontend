@@ -1,20 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sparkles, Save, RotateCcw } from "lucide-react";
-
-interface APISettings {
-  key: string;
-  model_name: string;
-  api_endpoint: string;
-  default_prompt: string;
-  description: string;
-}
+import { Sparkles, Save } from "lucide-react";
+import { getAPISettings, updateAPISettings, APISettings } from "@/lib/adminApi";
+import toast from "react-hot-toast";
 
 export default function APISettingsPage() {
   const [settings, setSettings] = useState<APISettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [promptText, setPromptText] = useState(""); // For editing
 
   useEffect(() => {
     fetchSettings();
@@ -22,13 +17,21 @@ export default function APISettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch("/api/admin/settings/api/article_generation");
-      if (response.ok) {
-        const data = await response.json();
-        setSettings(data);
+      setLoading(true);
+      const data = await getAPISettings('article_generation');
+      setSettings(data);
+      
+      // Convert JSONB to text if needed
+      if (data.default_prompt) {
+        if (typeof data.default_prompt === 'object') {
+          setPromptText(JSON.stringify(data.default_prompt, null, 2));
+        } else {
+          setPromptText(data.default_prompt as string);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch API settings:", error);
+      toast.error("Lỗi khi tải cấu hình API");
     } finally {
       setLoading(false);
     }
@@ -39,41 +42,28 @@ export default function APISettingsPage() {
 
     setSaving(true);
     try {
-      const response = await fetch("/api/admin/settings/api/article_generation", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      });
-
-      if (response.ok) {
-        alert("✅ Cập nhật cấu hình API thành công!");
-      } else {
-        alert("❌ Lỗi khi cập nhật cấu hình API");
+      // Try to parse as JSON first, otherwise use as text
+      let promptValue: string | Record<string, any> = promptText;
+      try {
+        promptValue = JSON.parse(promptText);
+      } catch {
+        // If parse fails, use as text string
+        promptValue = promptText;
       }
-    } catch (error) {
+      
+      await updateAPISettings('article_generation', {
+        model_name: settings.model_name,
+        api_endpoint: settings.api_endpoint,
+        default_prompt: promptValue,
+        description: settings.description,
+      });
+      toast.success("Cập nhật cấu hình API thành công!");
+    } catch (error: unknown) {
       console.error("Failed to save API settings:", error);
-      alert("❌ Lỗi khi cập nhật cấu hình API");
+      const message = error instanceof Error ? error.message : "Lỗi khi cập nhật cấu hình API";
+      toast.error(message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleReset = () => {
-    if (confirm("Bạn có chắc muốn reset về cấu hình mặc định?")) {
-      setSettings({
-        key: "article_generation",
-        model_name: "gpt-4",
-        api_endpoint: "https://api.openai.com/v1/chat/completions",
-        default_prompt: `Hãy viết một bài viết chi tiết, chuyên nghiệp và hấp dẫn. Bài viết cần có:
-1. Tiêu đề hấp dẫn
-2. Mở bài thu hút
-3. Nội dung chính với các tiêu đề phụ rõ ràng
-4. Kết luận súc tích
-5. Sử dụng ngôn ngữ tự nhiên, dễ hiểu
-
-Đảm bảo bài viết có giá trị thông tin cao và tối ưu cho SEO.`,
-        description: "Tạo nội dung bài viết tự động từ từ khóa",
-      });
     }
   };
 
@@ -146,16 +136,14 @@ export default function APISettingsPage() {
               Default Prompt <span className="text-red-500">*</span>
             </label>
             <textarea
-              value={settings.default_prompt}
-              onChange={(e) =>
-                setSettings({ ...settings, default_prompt: e.target.value })
-              }
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
               rows={8}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              placeholder="Nhập prompt mặc định..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
+              placeholder="Nhập prompt mặc định hoặc JSON structure..."
             />
             <p className="text-xs text-gray-500 mt-1">
-              Prompt sẽ được sử dụng khi tạo nội dung tự động từ từ khóa
+              Prompt sẽ được sử dụng khi tạo nội dung tự động. Có thể là text hoặc JSON structure
             </p>
           </div>
 
@@ -184,14 +172,6 @@ export default function APISettingsPage() {
             >
               <Save className="w-4 h-4" />
               {saving ? "Đang lưu..." : "Lưu cấu hình"}
-            </button>
-            <button
-              onClick={handleReset}
-              disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset về mặc định
             </button>
           </div>
         </div>

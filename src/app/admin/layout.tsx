@@ -331,9 +331,17 @@ export default function AdminLayout({
         {/* User Section */}
         <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-200 bg-white">
           <div className="flex items-center h-12 px-2 rounded-lg bg-gray-50">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Users className="w-4 h-4 text-primary" />
-            </div>
+            {profile.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={profile.full_name || "Admin"}
+                className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Users className="w-4 h-4 text-primary" />
+              </div>
+            )}
             <div
               className={`flex-1 ml-3 overflow-hidden transition-all duration-300 ease-in-out ${
                 sidebarCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"

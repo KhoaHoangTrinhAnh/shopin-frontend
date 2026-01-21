@@ -303,7 +303,7 @@ export default function OrdersPage() {
                       </div>
                       <div className="text-sm text-gray-600 mb-2">
                         <span className="font-medium">Tổng tiền:</span>{" "}
-                        {formatCurrency(order.total_price)}đ
+                        {formatCurrency(order.total_price || 0)}đ
                       </div>
                       {(order as any).cancellation_reason && (
                         <div className="p-3 bg-red-50 rounded-lg text-sm">
@@ -458,7 +458,7 @@ export default function OrdersPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-medium text-gray-900">
-                        {formatCurrency(order.total_price)}đ
+                        {formatCurrency(order.total_price || 0)}đ
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -706,7 +706,7 @@ export default function OrdersPage() {
                     <div className="text-right">
                       <p className="text-sm text-gray-500">Tổng cộng</p>
                       <p className="text-xl font-bold text-primary">
-                        {formatCurrency(selectedOrder.total_price)}đ
+                        {formatCurrency(selectedOrder.total_price || 0)}đ
                       </p>
                     </div>
                   </div>

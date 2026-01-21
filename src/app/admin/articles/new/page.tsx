@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -10,12 +10,22 @@ import {
   Image as ImageIcon,
   X,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   createArticle,
   generateArticleContent,
   uploadArticleImage,
+  getAllAPISettings,
 } from "@/lib/adminApi";
+import ArticlePromptEditor from "@/components/admin/ArticlePromptEditor";
+import RichTextEditor from "@/components/admin/RichTextEditor";
+import {
+  PromptTemplateJsonb,
+  DEFAULT_PROMPT_TEMPLATE,
+  isPromptTemplateJsonb,
+  mergeWithDefaults,
+} from "@/types/prompt-template";
 
 export default function NewArticlePage() {
   const router = useRouter();
@@ -23,23 +33,55 @@ export default function NewArticlePage() {
   const [generating, setGenerating] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingContentImage, setUploadingContentImage] = useState(false);
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
+  const [promptTemplate, setPromptTemplate] = useState<PromptTemplateJsonb>(DEFAULT_PROMPT_TEMPLATE);
+  const [defaultPromptTemplate, setDefaultPromptTemplate] = useState<PromptTemplateJsonb>(DEFAULT_PROMPT_TEMPLATE);
 
   // Form state
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
-  const [excerpt, setExcerpt] = useState("");
+  const [tags, setTags] = useState("");
   const [featuredImage, setFeaturedImage] = useState("");
   const [topic, setTopic] = useState("");
   const [keyword, setKeyword] = useState("");
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
   const [seoKeywords, setSeoKeywords] = useState("");
-  const [status, setStatus] = useState<"draft" | "published">("draft");
   
   // Simplified content structure: one content block + one image block
   const [mainContent, setMainContent] = useState("");
   const [contentImage, setContentImage] = useState("");
   const [contentImageAlt, setContentImageAlt] = useState("");
+
+  // Validation errors
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Load default prompt on mount
+  useEffect(() => {
+    const loadDefaultPrompt = async () => {
+      try {
+        const apiSettings = await getAllAPISettings();
+        const articleSettings = apiSettings.find((s) => s.name === "article");
+        if (articleSettings && articleSettings.default_prompt) {
+          // Handle JSONB prompt template
+          if (isPromptTemplateJsonb(articleSettings.default_prompt)) {
+            const merged = mergeWithDefaults(articleSettings.default_prompt);
+            setDefaultPromptTemplate(merged);
+            setPromptTemplate(merged);
+          } else if (typeof articleSettings.default_prompt === 'object') {
+            // Object but missing some fields - merge with defaults
+            const merged = mergeWithDefaults(articleSettings.default_prompt as Partial<PromptTemplateJsonb>);
+            setDefaultPromptTemplate(merged);
+            setPromptTemplate(merged);
+          }
+          // If it's a string (legacy), keep using DEFAULT_PROMPT_TEMPLATE
+        }
+      } catch (error) {
+        console.error("Failed to load default prompt:", error);
+      }
+    };
+    loadDefaultPrompt();
+  }, []);
 
   // Generate slug from title
   const generateSlug = (text: string) => {
@@ -72,10 +114,11 @@ export default function NewArticlePage() {
 
     try {
       setGenerating(true);
-      const result = await generateArticleContent(keyword, topic);
+      // Send JSONB prompt template directly to backend
+      const result = await generateArticleContent(keyword, topic, promptTemplate);
 
       if (result.title) setTitle(result.title);
-      if (result.excerpt) setExcerpt(result.excerpt);
+      if (result.tags && Array.isArray(result.tags)) setTags(result.tags.join(', '));
       // Convert content blocks to single content string
       if (result.content_blocks && result.content_blocks.length > 0) {
         const textContent = result.content_blocks
@@ -131,16 +174,53 @@ export default function NewArticlePage() {
     }
   };
 
+  // Validation
+  const validateForm = (publishStatus: "draft" | "published"): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    // Required for all
+    if (!title.trim()) {
+      newErrors.title = "Tiêu đề là bắt buộc";
+    }
+
+    // Additional validation for published articles
+    if (publishStatus === "published") {
+      if (!slug.trim()) {
+        newErrors.slug = "Đường dẫn (slug) là bắt buộc khi xuất bản";
+      }
+      if (!mainContent.trim()) {
+        newErrors.content = "Nội dung bài viết là bắt buộc khi xuất bản";
+      }
+      if (!tags.trim()) {
+        newErrors.tags = "Tags là bắt buộc khi xuất bản";
+      }
+      if (!featuredImage) {
+        newErrors.featuredImage = "Ảnh đại diện là bắt buộc khi xuất bản";
+      }
+      if (!metaTitle.trim()) {
+        newErrors.metaTitle = "Meta Title là bắt buộc khi xuất bản";
+      }
+      if (!metaDescription.trim()) {
+        newErrors.metaDescription = "Meta Description là bắt buộc khi xuất bản";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   // Save article
-  const handleSave = async (publishStatus?: "draft" | "published") => {
-    if (!title) {
-      alert("Vui lòng nhập tiêu đề bài viết");
+  const handleSave = async (publishStatus: "draft" | "published") => {
+    // Validate form
+    if (!validateForm(publishStatus)) {
+      alert(publishStatus === "published" 
+        ? "Vui lòng điền đầy đủ các thông tin bắt buộc trước khi xuất bản" 
+        : "Vui lòng nhập tiêu đề bài viết");
       return;
     }
 
     try {
       setLoading(true);
-      const finalStatus = publishStatus || status;
 
       // Convert simplified format to content_blocks for storage
       const contentBlocks = [];
@@ -154,14 +234,14 @@ export default function NewArticlePage() {
       await createArticle({
         title,
         slug,
-        excerpt,
+        tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
         featured_image: featuredImage,
         topic,
         keyword,
         meta_title: metaTitle,
         meta_description: metaDescription,
         seo_keywords: seoKeywords,
-        status: finalStatus,
+        status: publishStatus,
         content_blocks: contentBlocks,
       });
 
@@ -236,7 +316,7 @@ export default function NewArticlePage() {
                 </p>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 mb-3">
               <input
                 type="text"
                 value={keyword}
@@ -257,37 +337,61 @@ export default function NewArticlePage() {
                 <span>{generating ? "Đang tạo..." : "Tạo nội dung"}</span>
               </button>
             </div>
+
+            {/* Prompt Editor Toggle */}
+            <ArticlePromptEditor
+              value={promptTemplate}
+              defaultTemplate={defaultPromptTemplate}
+              onChange={setPromptTemplate}
+              onReset={() => setPromptTemplate(defaultPromptTemplate)}
+              isExpanded={showPromptEditor}
+              onToggleExpand={() => setShowPromptEditor(!showPromptEditor)}
+            />
           </div>
 
           {/* Title */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tiêu đề bài viết *
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Tiêu đề bài viết *
+              </label>
+              {errors.title && (
+                <span className="flex items-center gap-1 text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.title}
+                </span>
+              )}
+            </div>
             <input
               type="text"
               value={title}
               onChange={(e) => handleTitleChange(e.target.value)}
               placeholder="Nhập tiêu đề bài viết..."
-              className="w-full px-4 py-3 text-xl border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              className={`w-full px-4 py-3 text-xl border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary ${
+                errors.title ? "border-red-300" : ""
+              }`}
             />
           </div>
 
-          {/* Main Content - Simplified single text block */}
+          {/* Main Content - Rich Text Editor */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
-            <label className="block text-sm font-medium text-gray-700 mb-4">
-              Nội dung bài viết
-            </label>
-            <textarea
+            <div className="flex items-center justify-between mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Nội dung bài viết *
+              </label>
+              {errors.content && (
+                <span className="flex items-center gap-1 text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.content}
+                </span>
+              )}
+            </div>
+            <RichTextEditor
               value={mainContent}
-              onChange={(e) => setMainContent(e.target.value)}
+              onChange={setMainContent}
               placeholder="Nhập nội dung bài viết..."
-              rows={15}
-              className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+              minHeight="500px"
             />
-            <p className="text-xs text-gray-500 mt-2">
-              Hỗ trợ định dạng Markdown. Bạn có thể sử dụng **in đậm**, *in nghiêng*, ## tiêu đề, v.v.
-            </p>
           </div>
 
           {/* Content Image - Single image block */}
@@ -356,9 +460,17 @@ export default function NewArticlePage() {
         <div className="space-y-6">
           {/* Featured Image */}
           <div className="bg-white rounded-xl shadow-sm border p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Ảnh đại diện
-            </label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Ảnh đại diện *
+              </label>
+              {errors.featuredImage && (
+                <span className="flex items-center gap-1 text-xs text-red-600">
+                  <AlertCircle className="w-3 h-3" />
+                  Bắt buộc
+                </span>
+              )}
+            </div>
             {featuredImage ? (
               <div className="relative">
                 <img
@@ -374,7 +486,9 @@ export default function NewArticlePage() {
                 </button>
               </div>
             ) : (
-              <label className="flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+              <label className={`flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors ${
+                errors.featuredImage ? "border-red-300" : ""
+              }`}>
                 <input
                   type="file"
                   accept="image/*"
@@ -400,15 +514,22 @@ export default function NewArticlePage() {
             <h3 className="font-semibold text-gray-900">Thông tin</h3>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Đường dẫn (slug)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm text-gray-600">
+                  Đường dẫn (slug) *
+                </label>
+                {errors.slug && (
+                  <span className="text-xs text-red-600">Bắt buộc</span>
+                )}
+              </div>
               <input
                 type="text"
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
                 placeholder="ten-bai-viet"
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary ${
+                  errors.slug ? "border-red-300" : ""
+                }`}
               />
             </div>
 
@@ -426,32 +547,26 @@ export default function NewArticlePage() {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Mô tả ngắn
-              </label>
-              <textarea
-                value={excerpt}
-                onChange={(e) => setExcerpt(e.target.value)}
-                placeholder="Mô tả ngắn về bài viết..."
-                rows={3}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm text-gray-600">
+                  Tags *
+                </label>
+                {errors.tags && (
+                  <span className="text-xs text-red-600">Bắt buộc</span>
+                )}
+              </div>
+              <input
+                type="text"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="công nghệ, điện thoại, smartphone..."
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none ${
+                  errors.tags ? "border-red-300" : ""
+                }`}
               />
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Trạng thái
-              </label>
-              <select
-                value={status}
-                onChange={(e) =>
-                  setStatus(e.target.value as "draft" | "published")
-                }
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="draft">Bản nháp</option>
-                <option value="published">Đã xuất bản</option>
-              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Các từ khóa cách nhau bằng dấu phẩy (,)
+              </p>
             </div>
           </div>
 
@@ -460,33 +575,47 @@ export default function NewArticlePage() {
             <h3 className="font-semibold text-gray-900">SEO</h3>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Meta Title
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm text-gray-600">
+                  Meta Title *
+                </label>
+                {errors.metaTitle && (
+                  <span className="text-xs text-red-600">Bắt buộc</span>
+                )}
+              </div>
               <input
                 type="text"
                 value={metaTitle}
                 onChange={(e) => setMetaTitle(e.target.value)}
                 placeholder="Tiêu đề SEO"
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary ${
+                  errors.metaTitle ? "border-red-300" : ""
+                }`}
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className={`text-xs mt-1 ${metaTitle.length > 60 ? "text-red-500" : "text-gray-400"}`}>
                 {metaTitle.length}/60 ký tự
               </p>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Meta Description
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm text-gray-600">
+                  Meta Description *
+                </label>
+                {errors.metaDescription && (
+                  <span className="text-xs text-red-600">Bắt buộc</span>
+                )}
+              </div>
               <textarea
                 value={metaDescription}
                 onChange={(e) => setMetaDescription(e.target.value)}
                 placeholder="Mô tả SEO"
                 rows={3}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none ${
+                  errors.metaDescription ? "border-red-300" : ""
+                }`}
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className={`text-xs mt-1 ${metaDescription.length > 160 ? "text-red-500" : "text-gray-400"}`}>
                 {metaDescription.length}/160 ký tự
               </p>
             </div>

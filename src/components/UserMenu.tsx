@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, User, Settings, LogOut, ShoppingBag, Heart, UserCheck } from 'lucide-react';
+import { ChevronDown, User, Settings, LogOut, ShoppingBag, Heart, UserCheck, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 
@@ -76,6 +76,16 @@ const UserMenu: React.FC = () => {
 
           {/* Menu Items */}
           <div className="py-1">
+            {profile?.role === 'admin' && (
+              <Link 
+                href="/admin"
+                className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={() => setIsOpen(false)}
+              >
+                <Shield className="w-4 h-4" />
+                Quản trị
+              </Link>
+            )}
             <Link 
               href="/profile"
               className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"

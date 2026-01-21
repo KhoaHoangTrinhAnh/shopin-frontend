@@ -316,22 +316,40 @@ shopin-frontend/
 
 - **Node.js** >= 20.x
 - **npm** >= 10.x
-- **Backend API** running (ShopIn Backend)
+- **Backend API** running → [Setup Backend](https://github.com/KhoaHoangTrinhAnh/shopin-backend)
+
+> ⚠️ **Quan trọng:** Frontend cần Backend API để hoạt động. Vui lòng setup Backend trước khi chạy Frontend.
 
 ### Installation
 
-1. **Clone repository:**
+**Step 0: Setup Backend (Required)**
+
+Trước tiên, clone và setup backend API:
+
 ```bash
-git clone https://github.com/your-username/shopin-frontend.git
+# Clone backend repository
+git clone https://github.com/KhoaHoangTrinhAnh/shopin-backend.git
+cd shopin-backend
+
+# Follow backend setup instructions
+# See: https://github.com/KhoaHoangTrinhAnh/shopin-backend#getting-started
+```
+
+**Step 1: Clone Frontend**
+
+```bash
+git clone https://github.com/KhoaHoangTrinhAnh/shopin-frontend.git
 cd shopin-frontend
 ```
 
-2. **Install dependencies:**
+**Step 2: Install dependencies**
+
 ```bash
 npm install
 ```
 
-3. **Setup environment variables:**
+**Step 3: Setup environment variables**
+
 ```bash
 cp .env.example .env
 ```
@@ -349,12 +367,17 @@ NEXT_PUBLIC_API_BASE=http://localhost:3000
 NEXT_PUBLIC_APP_URL=http://localhost:3001
 ```
 
-4. **Start development server:**
+> 💡 **Tip:** Sử dụng cùng Supabase project với Backend
+
+**Step 4: Start development server**
+
 ```bash
 npm run dev
 ```
 
 Ứng dụng sẽ chạy tại: `http://localhost:3001`
+
+> 🔗 Đảm bảo Backend đang chạy tại `http://localhost:3000` trước khi test Frontend!
 
 ### Development Commands
 
@@ -753,6 +776,46 @@ module.exports = {
 
 ---
 
+## 🔗 Related Repositories
+
+ShopIn là hệ thống fullstack bao gồm 3 repositories:
+
+### 📦 Main Repositories
+
+| Repository | Description | Link |
+|------------|-------------|------|
+| **Frontend** | Next.js 16 web application (repo này) | [shopin-frontend](https://github.com/KhoaHoangTrinhAnh/shopin-frontend) |
+| **Backend** | NestJS API server | [shopin-backend](https://github.com/KhoaHoangTrinhAnh/shopin-backend) |
+| **Crawler** | Python web crawler cho data | [thegioididong-product-crawler](https://github.com/KhoaHoangTrinhAnh/thegioididong-product-crawler) |
+
+### 🔄 System Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   SHOPIN ECOSYSTEM                      │
+└─────────────────────────────────────────────────────────┘
+
+   Crawler (Python)          Backend (NestJS)        Frontend (Next.js)
+  ┌──────────────┐          ┌──────────────┐        ┌──────────────┐
+  │              │          │              │        │              │
+  │  Selenium    │  crawl   │  PostgreSQL  │  API   │   React 19   │
+  │  BeautifulSoup│ ─────> │  Supabase    │ <───> │  TailwindCSS │
+  │              │  data    │  NestJS      │  HTTP  │  TypeScript  │
+  │              │          │              │        │              │
+  └──────────────┘          └──────────────┘        └──────────────┘
+       ↓                          ↓                        ↓
+   JSON files              Database Schema            User Interface
+   SQL scripts             REST API                   Admin Panel
+   Product images          Authentication             E-commerce UI
+```
+
+**Setup Guide:**
+1. Clone và setup [Backend](https://github.com/KhoaHoangTrinhAnh/shopin-backend) trước
+2. Import data từ [Crawler](https://github.com/KhoaHoangTrinhAnh/thegioididong-product-crawler) vào database
+3. Setup Frontend này và kết nối với Backend
+
+---
+
 ## 🤝 Contributing
 
 Contributions welcome! Please:
@@ -771,6 +834,18 @@ This project is **UNLICENSED** - see package.json for details.
 
 ---
 
+## � Author
+
+- **Khoa Hoang Trinh Anh**
+- GitHub: [@KhoaHoangTrinhAnh](https://github.com/KhoaHoangTrinhAnh)
+- Email: khoahoangtrinhanh@gmail.com
+- Repositories:
+  - [ShopIn Frontend](https://github.com/KhoaHoangTrinhAnh/shopin-frontend) (this repo)
+  - [ShopIn Backend](https://github.com/KhoaHoangTrinhAnh/shopin-backend)
+  - [TheGioiDiDong Crawler](https://github.com/KhoaHoangTrinhAnh/thegioididong-product-crawler)
+
+---
+
 ## 🙏 Acknowledgments
 
 - **Next.js** - Amazing React framework
@@ -778,15 +853,19 @@ This project is **UNLICENSED** - see package.json for details.
 - **Shadcn** - Beautiful UI components
 - **TailwindCSS** - Utility-first CSS
 - **Supabase** - Backend platform
+- **TheGioiDiDong.com** - Data source for products
 
 ---
 
 ## 📞 Support
 
 For issues and questions:
-- Create an issue on GitHub
-- Contact development team
+- Create an issue on GitHub: [Issues](https://github.com/KhoaHoangTrinhAnh/shopin-frontend/issues)
+- Backend issues: [Backend Issues](https://github.com/KhoaHoangTrinhAnh/shopin-backend/issues)
+- Email: khoahoangtrinhanh@gmail.com
 
 ---
 
 **Built with ❤️ using Next.js 16 and TypeScript**
+
+**Part of the ShopIn E-commerce Platform** - [View Backend](https://github.com/KhoaHoangTrinhAnh/shopin-backend) | [View Data Crawler](https://github.com/KhoaHoangTrinhAnh/thegioididong-product-crawler)

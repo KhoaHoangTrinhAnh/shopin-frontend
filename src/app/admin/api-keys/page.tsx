@@ -2,7 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { Key, Plus, Edit, Trash2, Copy, Save, X } from "lucide-react";
-import toast from "react-hot-toast";
+
+const toast = {
+  success: (msg: string) => {
+    if (typeof window !== "undefined") {
+      // fallback: log to console (or replace with alert if you prefer)
+      console.log("toast.success:", msg);
+    }
+  },
+  error: (msg: string) => {
+    if (typeof window !== "undefined") {
+      console.error("toast.error:", msg);
+    }
+  },
+};
 
 interface APIKey {
   id: string;

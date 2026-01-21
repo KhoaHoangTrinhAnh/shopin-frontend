@@ -50,7 +50,7 @@ export default function CouponsPage() {
     min_order_value: 0,
     max_discount: 0,
     usage_limit: 0,
-    start_date: "",
+    starts_at: "",
     expires_at: "",
     is_active: true,
   });
@@ -93,7 +93,7 @@ export default function CouponsPage() {
       min_order_value: 0,
       max_discount: 0,
       usage_limit: 0,
-      start_date: "",
+      starts_at: "",
       expires_at: "",
       is_active: true,
     });
@@ -110,8 +110,8 @@ export default function CouponsPage() {
       min_order_value: coupon.min_order_value || 0,
       max_discount: coupon.max_discount || 0,
       usage_limit: coupon.usage_limit || 0,
-      start_date: coupon.start_date
-        ? new Date(coupon.start_date).toISOString().split("T")[0]
+      starts_at: coupon.starts_at
+        ? new Date(coupon.starts_at).toISOString().split("T")[0]
         : "",
       expires_at: coupon.expires_at
         ? new Date(coupon.expires_at).toISOString().split("T")[0]
@@ -130,7 +130,7 @@ export default function CouponsPage() {
     try {
       setSaving(true);
       if (editingCoupon) {
-        await updateCoupon(editingCoupon.id, formData);
+        await updateCoupon(editingCoupon.code, formData);
       } else {
         await createCoupon(formData);
       }
@@ -143,9 +143,9 @@ export default function CouponsPage() {
     }
   };
 
-  const handleToggle = async (id: string) => {
+  const handleToggle = async (code: string) => {
     try {
-      await toggleCouponStatus(id);
+      await toggleCouponStatus(code);
       loadCoupons();
     } catch (error) {
       console.error("Error toggling coupon:", error);
@@ -245,6 +245,9 @@ export default function CouponsPage() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">
+                  STT
+                </th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">
                   Mã
                 </th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">
@@ -265,8 +268,13 @@ export default function CouponsPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {coupons.map((coupon) => (
-                <tr key={coupon.id} className="hover:bg-gray-50">
+              {coupons.map((coupon, index) => (
+                <tr key={coupon.code} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <span className="text-sm font-medium text-gray-900">
+                      {(query.page! - 1) * query.limit! + index + 1}
+                    </span>
+                  </td>
                   <td className="px-6 py-4">
                     <div>
                       <span className="font-mono font-semibold text-primary">
@@ -280,21 +288,15 @@ export default function CouponsPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-1">
+                    <div>
                       {coupon.discount_type === "percentage" ? (
-                        <>
-                          <Percent className="w-4 h-4 text-blue-500" />
-                          <span className="font-medium">
-                            {coupon.discount_value}%
-                          </span>
-                        </>
+                        <span className="font-medium text-blue-600">
+                          {coupon.discount_value}%
+                        </span>
                       ) : (
-                        <>
-                          <DollarSign className="w-4 h-4 text-green-500" />
-                          <span className="font-medium">
-                            {formatCurrency(coupon.discount_value)}đ
-                          </span>
-                        </>
+                        <span className="font-medium text-green-600">
+                          {formatCurrency(coupon.discount_value)}đ
+                        </span>
                       )}
                     </div>
                     {coupon.min_order_value ? (
@@ -311,9 +313,9 @@ export default function CouponsPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm">
-                      {coupon.start_date && (
+                      {coupon.starts_at && (
                         <p className="text-gray-600">
-                          Từ: {formatDate(coupon.start_date)}
+                          Từ: {formatDate(coupon.starts_at)}
                         </p>
                       )}
                       {coupon.expires_at && (
@@ -321,14 +323,14 @@ export default function CouponsPage() {
                           Đến: {formatDate(coupon.expires_at)}
                         </p>
                       )}
-                      {!coupon.start_date && !coupon.expires_at && (
+                      {!coupon.starts_at && !coupon.expires_at && (
                         <span className="text-gray-400">Không giới hạn</span>
                       )}
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <button
-                      onClick={() => handleToggle(coupon.id)}
+                      onClick={() => handleToggle(coupon.code)}
                       className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
                         coupon.is_active
                           ? "bg-green-100 text-green-700"
@@ -359,7 +361,7 @@ export default function CouponsPage() {
                       </button>
                       <button
                         onClick={() => {
-                          setDeleteId(coupon.id);
+                          setDeleteId(coupon.code);
                           setShowDeleteModal(true);
                         }}
                         className="p-2 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded-lg transition-colors"
@@ -474,14 +476,15 @@ export default function CouponsPage() {
                   </label>
                   <input
                     type="number"
-                    value={formData.discount_value}
+                    value={formData.discount_value || ''}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        discount_value: Number(e.target.value),
+                        discount_value: e.target.value === '' ? 0 : Number(e.target.value),
                       })
                     }
                     min={0}
+                    step="any"
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
                 </div>
@@ -494,14 +497,15 @@ export default function CouponsPage() {
                   </label>
                   <input
                     type="number"
-                    value={formData.min_order_value}
+                    value={formData.min_order_value || ''}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        min_order_value: Number(e.target.value),
+                        min_order_value: e.target.value === '' ? 0 : Number(e.target.value),
                       })
                     }
                     min={0}
+                    step="any"
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
                 </div>
@@ -511,14 +515,15 @@ export default function CouponsPage() {
                   </label>
                   <input
                     type="number"
-                    value={formData.max_discount}
+                    value={formData.max_discount || ''}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        max_discount: Number(e.target.value),
+                        max_discount: e.target.value === '' ? 0 : Number(e.target.value),
                       })
                     }
                     min={0}
+                    step="any"
                     placeholder="Chỉ áp dụng với loại %"
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
@@ -531,14 +536,15 @@ export default function CouponsPage() {
                 </label>
                 <input
                   type="number"
-                  value={formData.usage_limit}
+                  value={formData.usage_limit || ''}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      usage_limit: Number(e.target.value),
+                      usage_limit: e.target.value === '' ? 0 : Number(e.target.value),
                     })
                   }
                   min={0}
+                  step="1"
                   placeholder="0 = không giới hạn"
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
@@ -551,9 +557,9 @@ export default function CouponsPage() {
                   </label>
                   <input
                     type="date"
-                    value={formData.start_date}
+                    value={formData.starts_at}
                     onChange={(e) =>
-                      setFormData({ ...formData, start_date: e.target.value })
+                      setFormData({ ...formData, starts_at: e.target.value })
                     }
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
