@@ -65,9 +65,8 @@ export const useAddressStore = create<AddressState>()(
 
       // Create a new address
       createAddress: async (data: CreateAddressData) => {
+        set((state) => ({ pendingCount: state.pendingCount + 1, error: null }));
         try {
-          set({ loading: true, error: null });
-
           const newAddress = await apiCreateAddress(data);
 
           set((state) => {
@@ -87,14 +86,14 @@ export const useAddressStore = create<AddressState>()(
             return {
               addresses: updatedAddresses,
               defaultAddress,
-              loading: false,
+              pendingCount: state.pendingCount - 1,
             };
           });
 
           return newAddress;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to create address';
-          set({ loading: false, error: errorMessage });
+          set((state) => ({ pendingCount: state.pendingCount - 1, error: errorMessage }));
           throw error;
         }
       },

@@ -879,6 +879,54 @@ export async function createOrder(data: CreateOrderData): Promise<Order> {
 }
 
 /**
+ * Direct checkout data for "Buy Now" functionality
+ */
+export interface CreateDirectOrderData {
+  variant_id: string;
+  qty: number;
+  address_id?: string;
+  address?: {
+    full_name: string;
+    phone: string;
+    address_line: string;
+    ward?: string;
+    district?: string;
+    city?: string;
+  };
+  payment_method?: string;
+  note?: string;
+  coupon_code?: string;
+}
+
+/**
+ * Create order directly from a product variant (bypass cart)
+ * Used for "Buy Now" functionality
+ */
+export async function createDirectOrder(data: CreateDirectOrderData): Promise<Order> {
+  const headers = await getAuthHeader();
+  
+  if (!headers) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/orders/direct`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to create direct order');
+  }
+
+  return response.json();
+}
+
+/**
  * Get user's orders
  */
 export async function getOrders(page: number = 1, limit: number = 10): Promise<OrdersResponse> {

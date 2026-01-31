@@ -339,7 +339,7 @@ export interface AddressState {
   // State
   addresses: Address[];
   defaultAddress: Address | null;
-  loading: boolean;
+  pendingCount: number;
   error: string | null;
 
   // Actions

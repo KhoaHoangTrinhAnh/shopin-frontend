@@ -194,26 +194,8 @@ export default function ProductDetailClient({
       return;
     }
 
-    setIsAddingToCart(true);
-    
-    try {
-      // Add to cart first
-      await addToCart(selectedVariant.id, quantity);
-      // Reset loading state before redirect
-      setIsAddingToCart(false);
-      // Redirect to checkout
-      router.push('/checkout');
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes('Profile not found') || msg.includes('No session') || msg.includes('Not authenticated')) {
-        showToast('Vui lòng đăng nhập để tiếp tục', 'error');
-        router.push('/?login=true');
-      } else {
-        console.error('Failed to add to cart:', error);
-        showToast(msg || 'Không thể thêm vào giỏ hàng', 'error');
-      }
-      setIsAddingToCart(false);
-    }
+    // Direct checkout with query params - bypass cart
+    router.push(`/checkout?direct=true&variantId=${selectedVariant.id}&qty=${quantity}`);
   };
 
   const handleToggleFavorite = async () => {

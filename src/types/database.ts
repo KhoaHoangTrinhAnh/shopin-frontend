@@ -47,7 +47,7 @@ export interface ProductVariant {
     connection?: string;
     [key: string]: any;
   } | null;
-  variant_slug: string;
+  variant_slug: string; // Database field name
   price: number;
   original_price: number | null;
   qty: number;

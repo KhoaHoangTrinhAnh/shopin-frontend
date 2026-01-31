@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatPrice, getCart, getDefaultAddress, createOrder, createSepayPayment, Address as ApiAddress, CartItem as ApiCartItem } from "@/lib/api";
+import { formatPrice, getCart, getDefaultAddress, createOrder, createDirectOrder, createSepayPayment, Address as ApiAddress, CartItem as ApiCartItem } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { AddressListDialog } from "@/components/AddressListDialog";
@@ -48,6 +48,11 @@ export default function NewCheckoutClient() {
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [showCancelledBanner, setShowCancelledBanner] = useState(false);
   const [cancelledOrderId, setCancelledOrderId] = useState<string | null>(null);
+  
+  // Direct checkout mode - for "Mua ngay" button
+  const [isDirectCheckout, setIsDirectCheckout] = useState(false);
+  const [directVariantId, setDirectVariantId] = useState<string | null>(null);
+  const [directQuantity, setDirectQuantity] = useState(1);
 
   // Convert API address to selector format
   const toSelectorAddress = (apiAddr: ApiAddress): SelectorAddress => ({
@@ -61,20 +66,80 @@ export default function NewCheckoutClient() {
     isDefault: apiAddr.is_default
   });
 
-  // Fetch cart and default address
+  // Fetch cart and default address OR setup direct checkout
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [cartData, addressData] = await Promise.all([
-        getCart(),
-        getDefaultAddress()
-      ]);
-      // Transform cart items to add quantity alias
-      const transformedItems = (cartData.items || []).map(item => ({
-        ...item,
-        quantity: item.qty
-      }));
-      setCartItems(transformedItems);
+      
+      // Check for direct checkout mode from query params
+      const params = new URLSearchParams(window.location.search);
+      const isDirect = params.get('direct') === 'true';
+      const variantId = params.get('variantId');
+      const qty = parseInt(params.get('qty') || '1', 10);
+      
+      if (isDirect && variantId) {
+        // Direct checkout mode - fetch actual variant info to display
+        setIsDirectCheckout(true);
+        setDirectVariantId(variantId);
+        setDirectQuantity(qty);
+        
+        try {
+          // Fetch variant details from dedicated endpoint
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3000/api'}/products/variants/${variantId}`
+          );
+          
+          if (response.ok) {
+            const variantData = await response.json();
+            
+            // Create cart item with full variant and product info for display
+            const tempCartItem: CartItem = {
+              id: 'direct-' + variantData.id,
+              cart_id: 'direct',
+              product_id: variantData.product.id,
+              variant_id: variantData.id,
+              quantity: qty,
+              unit_price: variantData.price,
+              added_at: new Date().toISOString(),
+              variant: {
+                id: variantData.id,
+                sku: variantData.sku || '',
+                main_image: variantData.main_image || variantData.product.main_image,
+                attributes: variantData.attributes || {},
+                price: variantData.price,
+                name: variantData.name || variantData.product.name,
+                color: variantData.color || '',
+                qty: variantData.qty || 0,
+              },
+              product: {
+                id: variantData.product.id,
+                name: variantData.product.name,
+                slug: variantData.product.slug,
+                main_image: variantData.product.main_image,
+              },
+            };
+            setCartItems([tempCartItem]);
+          } else {
+            console.error('Variant not found:', variantId);
+            showToast('Không tìm thấy sản phẩm', 'error');
+          }
+        } catch (err) {
+          console.error('Error fetching variant info:', err);
+          showToast('Không thể tải thông tin sản phẩm', 'error');
+        }
+      } else {
+        // Normal cart checkout
+        setIsDirectCheckout(false);
+        const cartData = await getCart();
+        const transformedItems = (cartData.items || []).map(item => ({
+          ...item,
+          quantity: item.qty
+        }));
+        setCartItems(transformedItems);
+      }
+      
+      // Fetch address in both modes
+      const addressData = await getDefaultAddress();
       setAddress(addressData);
       if (addressData) {
         setSelectorAddress(toSelectorAddress(addressData));
@@ -141,14 +206,31 @@ export default function NewCheckoutClient() {
       let orderId = pendingOrderId;
       if (!orderId) {
         console.log('[Checkout] Creating order...');
-        const order = await createOrder({
-          address_id: address.id,
-          payment_method: paymentMethod,
-          note: note || undefined
-        });
-        orderId = order.id;
+        
+        // Check if this is a direct checkout (Buy Now) or normal cart checkout
+        if (isDirectCheckout && directVariantId) {
+          console.log('[Checkout] Direct checkout mode - variant:', directVariantId, 'qty:', directQuantity);
+          const order = await createDirectOrder({
+            variant_id: directVariantId,
+            qty: directQuantity,
+            address_id: address.id,
+            payment_method: paymentMethod,
+            note: note || undefined
+          });
+          orderId = order.id;
+          console.log('[Checkout] Direct order created:', orderId);
+        } else {
+          console.log('[Checkout] Cart checkout mode');
+          const order = await createOrder({
+            address_id: address.id,
+            payment_method: paymentMethod,
+            note: note || undefined
+          });
+          orderId = order.id;
+          console.log('[Checkout] Cart order created:', orderId);
+        }
+        
         setPendingOrderId(orderId);
-        console.log('[Checkout] Order created:', orderId);
       } else {
         console.log('[Checkout] Retrying payment for existing order:', orderId);
       }

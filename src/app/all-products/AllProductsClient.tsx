@@ -263,7 +263,7 @@ export default function AllProductsClient({
                     key={product.id}
                     id={product.id}
                     slug={product.slug}
-                    variantSlug={product.default_variant?.variant_slug}
+                    variantSlug={product.default_variant?.variant_slug || product.default_variant?.id}
                     image={product.default_variant?.main_image || "/placeholder.png"}
                     title={product.name}
                     price={product.default_variant?.price || 0}

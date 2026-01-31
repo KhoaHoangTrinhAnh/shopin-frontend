@@ -168,7 +168,7 @@ export function useCartSync() {
   const cartItems = useCartStore((state) => state.items);
   const syncCart = useCartStore((state) => state.syncCart);
   const fetchCart = useCartStore((state) => state.fetchCart);
-  const hasSyncedRef = React.useRef(false);
+  const hasSyncedRef = useRef(false);
 
   useEffect(() => {
     if (isAuthenticated && !hasSyncedRef.current) {

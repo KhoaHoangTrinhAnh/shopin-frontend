@@ -158,7 +158,17 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 return;
               }
               
-              router.push('/checkout');
+              // Direct checkout with query params (variant ID + quantity)
+              // This will bypass cart and checkout only this single product
+              const defaultVariantId = variantSlug || id; // Use variant slug if available, fallback to product ID
+              
+              if (!variantSlug) {
+                // If no variant slug, this product might not have variants configured
+                showToast('Sản phẩm chưa có phiên bản để mua', 'error');
+                return;
+              }
+              
+              router.push(`/checkout?direct=true&variantId=${defaultVariantId}&qty=1`);
             }}
             className="mt-auto w-full bg-green-700 text-white font-bold py-2 rounded-3xl hover:bg-green-800 transition duration-200"
           >
