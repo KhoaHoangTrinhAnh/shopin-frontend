@@ -1,22 +1,25 @@
 'use client';
 
-import { useToast } from '@/contexts/ToastContext';
-import { CheckCircle2, XCircle, Info, X } from 'lucide-react';
+import { useToasts, useToastActions } from '@/stores';
+import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 const icons = {
   success: CheckCircle2,
   error: XCircle,
+  warning: AlertTriangle,
   info: Info,
 };
 
 const colors = {
   success: 'bg-green-50 text-green-800 border-green-200',
   error: 'bg-red-50 text-red-800 border-red-200',
+  warning: 'bg-yellow-50 text-yellow-800 border-yellow-200',
   info: 'bg-blue-50 text-blue-800 border-blue-200',
 };
 
 export default function ToastContainer() {
-  const { toasts, removeToast } = useToast();
+  const toasts = useToasts();
+  const { removeToast } = useToastActions();
 
   if (toasts.length === 0) return null;
 

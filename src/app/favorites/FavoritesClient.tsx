@@ -7,8 +7,8 @@ import ProductCard from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { getFavorites, removeFromFavorites, FavoriteItem } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 
 export default function FavoritesClient() {
   const { isAuthenticated, loading: authLoading } = useAuth();

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ForgotModalProps {
   isOpen: boolean;

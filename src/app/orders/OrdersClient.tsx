@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { EmptyState } from "@/components/EmptyState";
 import { formatPrice, getOrders, requestOrderCancellation, Order } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; variant: "secondary" | "default" | "destructive" | "outline" }> = {
   pending: { label: "Chờ xác nhận", icon: Clock, variant: "secondary" },

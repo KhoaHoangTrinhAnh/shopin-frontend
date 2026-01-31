@@ -247,10 +247,50 @@ async function getAuthHeader(): Promise<{ Authorization: string } | null> {
     return null;
   }
 
+  // IMPORTANT: Use getUser() instead of getSession() to ensure fresh user data
+  // getSession() might return stale/cached session
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error || !user) {
+    console.error('[Auth] Failed to get user:', error?.message);
+    return null;
+  }
+
+  // Get session after confirming user exists
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session?.access_token) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[Auth] No access token in session');
+    }
     return null;
+  }
+  
+  // Debug: log user info (dev only, no PII in production)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[Auth] User authenticated, session valid');
+  }
+  
+  // Verify session matches current user
+  if (session.user?.id !== user.id) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[Auth] Session mismatch detected');
+    }
+    // Force refresh session with error handling
+    try {
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError || !refreshData?.session?.access_token) {
+        console.error('[Auth] Token refresh failed:', refreshError?.message);
+        return null;
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Auth] Session refreshed successfully');
+      }
+      return { Authorization: `Bearer ${refreshData.session.access_token}` };
+    } catch (err) {
+      console.error('[Auth] Refresh exception:', err instanceof Error ? err.message : 'Unknown error');
+      return null;
+    }
   }
   
   return { Authorization: `Bearer ${session.access_token}` };
@@ -1053,6 +1093,106 @@ export async function deleteAccount(password: string) {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Failed to delete account');
+  }
+
+  return response.json();
+}
+
+// ============================================
+// PAYMENT API FUNCTIONS
+// ============================================
+
+export interface CreateSepayPaymentParams {
+  orderId: string;
+  amount: number;
+  returnUrl?: string;
+  cancelUrl?: string;
+}
+
+export interface SepayPaymentResponse {
+  checkoutUrl: string;
+  paymentId: string;
+  orderNumber: string;
+  formFields?: any;
+}
+
+export interface PaymentStatusResponse {
+  status: 'pending' | 'success' | 'failed' | 'cancelled';
+  orderId: string;
+  transactionId?: string;
+  message?: string;
+}
+
+/**
+ * Create a SePay payment checkout session
+ * Returns a checkout URL to redirect the user to
+ */
+export async function createSepayPayment(params: CreateSepayPaymentParams): Promise<SepayPaymentResponse> {
+  const headers = await getAuthHeader();
+  if (!headers) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/payments/sepay/create`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to create payment');
+  }
+
+  return response.json();
+}
+
+/**
+ * Get payment status for an order
+ */
+export async function getPaymentStatus(orderId: string): Promise<PaymentStatusResponse> {
+  const headers = await getAuthHeader();
+  if (!headers) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/payments/status/${orderId}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to get payment status');
+  }
+
+  return response.json();
+}
+
+/**
+ * Verify payment after returning from SePay
+ */
+export async function verifyPayment(orderId: string, transactionId: string): Promise<PaymentStatusResponse> {
+  const headers = await getAuthHeader();
+  if (!headers) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/payments/verify`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ orderId, transactionId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to verify payment');
   }
 
   return response.json();

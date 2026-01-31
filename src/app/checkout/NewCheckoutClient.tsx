@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,11 +19,12 @@ import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatPrice, getCart, getDefaultAddress, createOrder, Address as ApiAddress, CartItem as ApiCartItem } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastContext";
+import { formatPrice, getCart, getDefaultAddress, createOrder, createSepayPayment, Address as ApiAddress, CartItem as ApiCartItem } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 import { AddressListDialog } from "@/components/AddressListDialog";
 import { Address as SelectorAddress } from "@/components/AddressSelector";
+import { SepayCheckoutForm } from "@/components/SepayCheckoutForm";
 
 // Local CartItem with quantity alias
 interface CartItem extends Omit<ApiCartItem, 'qty'> {
@@ -43,6 +44,10 @@ export default function NewCheckoutClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [showAddressDialog, setShowAddressDialog] = useState(false);
+  const [sepayFormData, setSepayFormData] = useState<{ checkoutUrl: string; formFields: any } | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [showCancelledBanner, setShowCancelledBanner] = useState(false);
+  const [cancelledOrderId, setCancelledOrderId] = useState<string | null>(null);
 
   // Convert API address to selector format
   const toSelectorAddress = (apiAddr: ApiAddress): SelectorAddress => ({
@@ -88,13 +93,35 @@ export default function NewCheckoutClient() {
     } else if (!authLoading && !isAuthenticated) {
       router.push('/');
     }
-  }, [authLoading, isAuthenticated, fetchData, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, isAuthenticated]); // Only depend on auth state changes
 
-  // Calculate totals
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.variant?.price || item.unit_price) * item.quantity, 0);
-  const shippingFee = subtotal >= 500000 ? 0 : 30000;
-  const discount = 0;
-  const total = subtotal + shippingFee - discount;
+  // Handle cancelled payment query params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const cancelled = params.get('cancelled');
+    const orderId = params.get('orderId');
+    
+    if (cancelled === 'true' && orderId) {
+      setShowCancelledBanner(true);
+      setCancelledOrderId(orderId);
+      setPendingOrderId(orderId);
+      showToast('Thanh toán đã bị hủy. Bạn có thể thử lại.', 'warning');
+    }
+  }, [showToast]);
+
+  // Calculate totals with useMemo to prevent recalculation on every render
+  const { subtotal, shippingFee, discount, total } = useMemo(() => {
+    const sub = cartItems.reduce((sum, item) => sum + (item.variant?.price || item.unit_price) * item.quantity, 0);
+    const shipping = sub >= 500000 ? 0 : 30000;
+    const disc = 0; // TODO: Implement coupon discount logic
+    return {
+      subtotal: sub,
+      shippingFee: shipping,
+      discount: disc,
+      total: sub + shipping - disc
+    };
+  }, [cartItems]);
 
   const handlePlaceOrder = async () => {
     if (!address) {
@@ -102,20 +129,63 @@ export default function NewCheckoutClient() {
       return;
     }
     
-    if (cartItems.length === 0) {
+    if (cartItems.length === 0 && !pendingOrderId) {
       showToast('Giỏ hàng trống', 'error');
       return;
     }
 
     try {
       setIsPlacingOrder(true);
-      const order = await createOrder({
-        address_id: address.id,
-        payment_method: paymentMethod,
-        note: note || undefined
-      });
+      
+      // Use existing pendingOrderId or create new order
+      let orderId = pendingOrderId;
+      if (!orderId) {
+        console.log('[Checkout] Creating order...');
+        const order = await createOrder({
+          address_id: address.id,
+          payment_method: paymentMethod,
+          note: note || undefined
+        });
+        orderId = order.id;
+        setPendingOrderId(orderId);
+        console.log('[Checkout] Order created:', orderId);
+      } else {
+        console.log('[Checkout] Retrying payment for existing order:', orderId);
+      }
+
+      // If payment method is card, create SePay payment and redirect
+      if (paymentMethod === 'card') {
+        try {
+          const returnUrl = `${window.location.origin}/orders/success?orderId=${orderId}`;
+          const cancelUrl = `${window.location.origin}/checkout?cancelled=true&orderId=${orderId}`;
+          
+          console.log('[Checkout] Creating SePay payment for order:', orderId);
+          const paymentResponse = await createSepayPayment({
+            orderId,
+            amount: total,
+            returnUrl,
+            cancelUrl,
+          });
+          
+          console.log('[Checkout] Payment created, will render form with fields:', paymentResponse.formFields);
+          // Set form data to trigger form render and auto-submit
+          setSepayFormData({
+            checkoutUrl: paymentResponse.checkoutUrl,
+            formFields: paymentResponse.formFields
+          });
+          return; // Form component will handle redirect
+        } catch (paymentError) {
+          console.error('Payment creation failed:', paymentError);
+          showToast('Không thể tạo thanh toán. Vui lòng thử lại hoặc chọn phương thức khác.', 'error');
+          // Keep pendingOrderId so user can retry
+          return;
+        }
+      }
+
+      // For COD, redirect to success page directly
+      setPendingOrderId(null);
       showToast('Đặt hàng thành công!', 'success');
-      router.push(`/orders/success?orderId=${order.id}`);
+      router.push(`/orders/success?orderId=${orderId}`);
     } catch (error) {
       console.error('Error creating order:', error);
       showToast('Không thể đặt hàng. Vui lòng thử lại.', 'error');
@@ -154,21 +224,9 @@ export default function NewCheckoutClient() {
     },
     { 
       id: "card", 
-      name: "Thẻ tín dụng/ghi nợ", 
-      description: "Visa, MasterCard, JCB",
+      name: "Thẻ tín dụng/ghi nợ (SePay)", 
+      description: "Thanh toán an toàn qua cổng SePay - Visa, MasterCard, JCB",
       icon: CreditCard 
-    },
-    { 
-      id: "momo", 
-      name: "Ví MoMo", 
-      description: "Thanh toán qua ví điện tử MoMo",
-      icon: null 
-    },
-    { 
-      id: "zalopay", 
-      name: "ZaloPay", 
-      description: "Thanh toán qua ví điện tử ZaloPay",
-      icon: null 
     }
   ];
 
@@ -179,6 +237,11 @@ export default function NewCheckoutClient() {
         <Loader2 className="h-8 w-8 animate-spin text-green-600" />
       </div>
     );
+  }
+
+  // SePay payment form (auto-submit)
+  if (sepayFormData) {
+    return <SepayCheckoutForm checkoutUrl={sepayFormData.checkoutUrl} formFields={sepayFormData.formFields} />;
   }
 
   // Empty cart

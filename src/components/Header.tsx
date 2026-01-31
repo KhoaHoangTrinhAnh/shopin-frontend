@@ -4,7 +4,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ShoppingCart, Heart, ClipboardList, LogIn, Search as SearchIcon, Globe, ChevronDown } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import LoginModal from "./LoginModal";
 import RegisterModal from "./RegisterModal";

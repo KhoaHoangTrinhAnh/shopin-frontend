@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Search as SearchIcon } from 'lucide-react';
-import { useSearch } from '@/contexts/SearchContext';
+import { useSearch } from '@/hooks/useSearch';
 
 const SearchButton: React.FC = () => {
   const { openSearch } = useSearch();

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Search as SearchIcon, X } from 'lucide-react';
-import { useSearch } from '@/contexts/SearchContext';
+import { useSearch } from '@/hooks/useSearch';
 
 interface SearchPopupProps {
   onSearch?: (query: string) => void;

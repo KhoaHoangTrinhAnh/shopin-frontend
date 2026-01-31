@@ -2,9 +2,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { ReactNode } from 'react'
-import { AuthProvider } from '@/contexts/AuthContext';
-import { SearchProvider } from '@/contexts/SearchContext';
-import { ToastProvider } from '@/contexts/ToastContext';
+import StoreProvider from '@/components/StoreProvider';
 import ClientBodyCleanup from '@/components/ClientBodyCleanup';
 import ToastContainer from '@/components/ToastContainer';
 import ConditionalLayout from '@/components/ConditionalLayout';
@@ -20,16 +18,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className="scrollbar-hide">
       <body suppressHydrationWarning>
         <ClientBodyCleanup />
-        <AuthProvider>
-          <SearchProvider>
-            <ToastProvider>
-              <div className="w-full box-border mx-auto bg-white">
-                <ConditionalLayout>{children}</ConditionalLayout>
-              </div>
-              <ToastContainer />
-            </ToastProvider>
-          </SearchProvider>
-        </AuthProvider>
+        <StoreProvider>
+          <div className="w-full box-border mx-auto bg-white">
+            <ConditionalLayout>{children}</ConditionalLayout>
+          </div>
+          <ToastContainer />
+        </StoreProvider>
       </body>
     </html>
   )

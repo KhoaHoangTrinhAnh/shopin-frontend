@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, User, Settings, LogOut, ShoppingBag, Heart, UserCheck, Shield } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 
 const UserMenu: React.FC = () => {

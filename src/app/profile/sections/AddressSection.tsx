@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, MapPin } from "lucide-react";
 import { getAddresses, Address } from "@/lib/api";
 import { AddressListDialog } from "@/components/AddressListDialog";
-import { useToast } from "@/contexts/ToastContext";
+import { useToast } from "@/hooks/useToast";
 
 export default function AddressSection() {
   const { showToast } = useToast();

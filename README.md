@@ -516,31 +516,131 @@ npm run lint
 
 ## 🗃️ State Management
 
-### Zustand Stores
+### 🦀 Zustand (Client State)
 
-**Auth Store** (contexts/AuthContext.tsx):
+**Zustand** là lightweight state management library được sử dụng cho toàn bộ client-side state trong ứng dụng. Tất cả stores được tổ chức tại `src/stores/`.
+
+#### Available Stores
+
+| Store | Location | Purpose |
+|-------|----------|---------|
+| **Auth Store** | `src/stores/auth.store.ts` | User authentication, profile, login/logout |
+| **Cart Store** | `src/stores/cart.store.ts` | Shopping cart items, quantities, variants |
+| **Order Store** | `src/stores/order.store.ts` | Order history, order details, pagination |
+| **UI Store** | `src/stores/ui.store.ts` | Toast notifications, modals, sidebar state |
+| **Chat Store** | `src/stores/chat.store.ts` | Conversations, messages, chat state |
+| **Favorites Store** | `src/stores/favorites.store.ts` | Wishlist items, favorite products |
+| **Address Store** | `src/stores/address.store.ts` | User shipping addresses management |
+
+#### Usage Example
+
+**Auth Store** (`src/stores/auth.store.ts`):
 ```typescript
-- user: User | null
-- login(email, password)
-- logout()
-- register(data)
+import { useAuthStore } from '@/stores';
+
+function LoginComponent() {
+  const user = useAuthStore((state) => state.user);
+  const login = useAuthStore((state) => state.login);
+  
+  return (
+    <button onClick={() => login(email, password)}>
+      {user ? `Welcome ${user.name}` : 'Login'}
+    </button>
+  );
+}
 ```
 
-**Cart Store** (contexts/CartContext.tsx):
+**Cart Store** (`src/stores/cart.store.ts`):
 ```typescript
-- items: CartItem[]
-- addItem(product, variant)
-- removeItem(id)
-- updateQuantity(id, quantity)
-- clearCart()
+import { useCartStore } from '@/stores';
+
+function CartComponent() {
+  const cartItems = useCartStore((state) => state.items);
+  const addItem = useCartStore((state) => state.addItem);
+  const removeItem = useCartStore((state) => state.removeItem);
+  
+  return (
+    <>
+      <div>Items: {cartItems.length}</div>
+      <button onClick={() => addItem(product, variant, quantity)}>
+        Add to Cart
+      </button>
+    </>
+  );
+}
 ```
 
-### React Query
+#### Key Features
 
-Sử dụng cho server state:
-- Product fetching
-- Order fetching
-- API mutations
+- ✅ **Lightweight & Fast** - Minimal bundle size overhead
+- ✅ **TypeScript Support** - Full type safety with zero `any` types
+- ✅ **Persistence** - Persist state to localStorage using middleware
+- ✅ **Devtools Integration** - Redux DevTools support for debugging
+- ✅ **Selector Pattern** - Subscribe to specific parts of state
+- ✅ **Multiple Stores** - Modular store structure
+- ✅ **Async Actions** - Support for async operations (API calls)
+
+#### Store Structure
+
+```
+src/stores/
+├── auth.store.ts           # Authentication & user state
+├── cart.store.ts           # Shopping cart state
+├── order.store.ts          # Order history & details
+├── ui.store.ts             # UI state (toasts, modals, etc)
+├── chat.store.ts           # Chat/conversations state
+├── favorites.store.ts      # Wishlist/favorites state
+├── address.store.ts        # User addresses state
+├── types.ts                # Shared TypeScript types
+├── index.ts                # Central exports
+└── __tests__/              # Unit tests for stores
+    ├── auth.store.test.ts
+    ├── cart.store.test.ts
+    ├── order.store.test.ts
+    └── ui.store.test.ts
+```
+
+#### Middleware
+
+**Persistence Middleware:**
+```typescript
+// Stores with persistence (auto-save to localStorage)
+- Auth Store: persists user & token
+- Cart Store: persists cart items across sessions
+- Favorites Store: persists wishlist
+- Address Store: persists saved addresses
+```
+
+**Devtools Middleware:**
+```typescript
+// Redux DevTools integration for debugging
+- Time-travel debugging
+- Action history
+- State snapshots
+```
+
+### React Query / TanStack Query
+
+Sử dụng cho server state và caching:
+- Product fetching & caching
+- Order fetching & pagination
+- Real-time data synchronization
+- Automatic retry & error handling
+
+### React Hook Form
+
+Form state management:
+- Login/Register forms
+- Checkout forms
+- Profile forms
+- Validation integration with Zod
+
+### Zod
+
+Schema validation:
+- Type-safe data validation
+- API response validation
+- Form data validation
 
 ---
 

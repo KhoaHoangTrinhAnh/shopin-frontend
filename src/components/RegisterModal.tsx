@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, Eye, EyeOff, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface RegisterModalProps {
   isOpen: boolean;

@@ -105,6 +105,7 @@ export interface Article {
   id: string;
   title: string;
   slug: string;
+  excerpt?: string;
   tags?: string[];
   content?: string;
   content_blocks?: ContentBlock[];

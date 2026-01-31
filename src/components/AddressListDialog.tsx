@@ -19,7 +19,7 @@ import {
   setDefaultAddress as setDefaultAddressApi,
   Address as ApiAddress 
 } from "@/lib/api";
-import { useToast } from "@/contexts/ToastContext";
+import { useToast } from "@/hooks/useToast";
 
 interface AddressListDialogProps {
   open: boolean;

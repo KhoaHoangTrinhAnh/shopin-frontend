@@ -142,7 +142,7 @@ export default function BlogPage() {
                       </p>
                     )}
                     <div className="flex items-center gap-4 text-sm text-gray-500 mb-6">
-                      {featuredArticle.author && (
+                      {featuredArticle.author?.full_name && (
                         <div className="flex items-center gap-1">
                           <User className="w-4 h-4" />
                           <span>{featuredArticle.author.full_name}</span>
@@ -202,7 +202,7 @@ export default function BlogPage() {
                       </p>
                     )}
                     <div className="flex items-center gap-3 text-xs text-gray-500 mb-4">
-                      {article.author && (
+                      {article.author?.full_name && (
                         <div className="flex items-center gap-1">
                           <User className="w-3 h-3" />
                           <span>{article.author.full_name}</span>

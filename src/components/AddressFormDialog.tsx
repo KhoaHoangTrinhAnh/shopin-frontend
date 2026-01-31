@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Address } from "./AddressSelector";
 import { createAddress, updateAddress } from "@/lib/api";
-import { useToast } from "@/contexts/ToastContext";
+import { useToast } from "@/hooks/useToast";
 
 interface AddressFormDialogProps {
   open: boolean;

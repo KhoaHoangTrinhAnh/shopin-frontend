@@ -12,8 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice, calculateDiscount, addToCart, checkFavorite, toggleFavorite } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 
 interface ProductDetailClientProps {
   product: Product;
@@ -32,6 +32,7 @@ export default function ProductDetailClient({
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
   
   // Find initial variant based on URL slug or use default
   const getInitialVariant = () => {
@@ -239,10 +240,12 @@ export default function ProductDetailClient({
   };
 
   const nextImage = () => {
+    setImageLoading(true);
     setSelectedImageIndex((prev) => (prev + 1) % images.length);
   };
 
   const prevImage = () => {
+    setImageLoading(true);
     setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
@@ -280,10 +283,21 @@ export default function ProductDetailClient({
                 src={images[selectedImageIndex] || mainImage}
                 alt={product.name}
                 fill
-                className="object-contain"
-                priority
+                className={cn(
+                  "object-contain transition-opacity duration-300",
+                  imageLoading ? "opacity-0" : "opacity-100"
+                )}
+                priority={selectedImageIndex === 0} // Only prioritize first image
+                loading={selectedImageIndex === 0 ? "eager" : "lazy"}
+                onLoad={() => setImageLoading(false)}
+                onError={() => setImageLoading(false)}
               />
             </div>
+            
+            {/* Loading skeleton */}
+            {imageLoading && (
+              <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+            )}
             
             {/* Zoom Indicator */}
             {!isZoomed && (
