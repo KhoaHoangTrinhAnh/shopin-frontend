@@ -129,16 +129,16 @@ export function isPromptTemplateJsonb(obj: unknown): obj is PromptTemplateJsonb 
 // Helper to merge partial template with defaults
 export function mergeWithDefaults(partial: Partial<PromptTemplateJsonb>): PromptTemplateJsonb {
   return {
-    title: { ...DEFAULT_PROMPT_TEMPLATE.title, ...partial.title },
-    description: { 
-      ...DEFAULT_PROMPT_TEMPLATE.description, 
+    title: { ...DEFAULT_PROMPT_TEMPLATE.title, ...partial.title } as PromptTitleConfig,
+    description: {
+      ...DEFAULT_PROMPT_TEMPLATE.description,
       ...partial.description,
-      structure: partial.description?.structure || DEFAULT_PROMPT_TEMPLATE.description?.structure
-    },
-    tags: { ...DEFAULT_PROMPT_TEMPLATE.tags, ...partial.tags },
-    seo_keyword: { ...DEFAULT_PROMPT_TEMPLATE.seo_keyword, ...partial.seo_keyword },
-    meta_title: { ...DEFAULT_PROMPT_TEMPLATE.meta_title, ...partial.meta_title },
-    meta_description: { ...DEFAULT_PROMPT_TEMPLATE.meta_description, ...partial.meta_description },
-    meta_keywords: { ...DEFAULT_PROMPT_TEMPLATE.meta_keywords, ...partial.meta_keywords },
+      structure: partial.description?.structure || DEFAULT_PROMPT_TEMPLATE.description?.structure,
+    } as PromptDescriptionConfig,
+    tags: { ...DEFAULT_PROMPT_TEMPLATE.tags, ...partial.tags } as PromptTagsConfig,
+    seo_keyword: { ...DEFAULT_PROMPT_TEMPLATE.seo_keyword, ...partial.seo_keyword } as PromptSeoKeywordConfig,
+    meta_title: { ...DEFAULT_PROMPT_TEMPLATE.meta_title, ...partial.meta_title } as PromptMetaTitleConfig,
+    meta_description: { ...DEFAULT_PROMPT_TEMPLATE.meta_description, ...partial.meta_description } as PromptMetaDescriptionConfig,
+    meta_keywords: { ...DEFAULT_PROMPT_TEMPLATE.meta_keywords, ...partial.meta_keywords } as PromptMetaKeywordsConfig,
   };
 }

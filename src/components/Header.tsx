@@ -124,7 +124,7 @@ const Header = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm kiếm sản phẩm..."
-              className="w-64 px-4 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+              className="w-64 h-10 px-4 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
             />
             <button
               type="submit"
@@ -138,7 +138,7 @@ const Header = () => {
           <div className="relative" ref={languageDropdownRef}>
             <button
               onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-green-600 border border-gray-300 rounded-lg hover:border-green-600 transition-colors"
+              className="flex items-center gap-2 h-10 px-4 text-sm leading-none text-gray-700 hover:text-green-600 border border-gray-300 rounded-lg hover:border-green-600 transition-colors"
             >
               <span className="text-lg">{selectedLanguage.flag}</span>
               <span className="hidden md:inline">{selectedLanguage.code.toUpperCase()}</span>

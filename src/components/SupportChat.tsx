@@ -1,244 +1,100 @@
 "use client";
-import React, { useState, useRef, useCallback, useEffect } from "react";
+
+/**
+ * SupportChat Component
+ * 
+ * Customer-facing chat widget for realtime communication with admin support.
+ * Uses Supabase realtime subscriptions for instant message updates.
+ * 
+ * Features:
+ * - Realtime message updates (no polling)
+ * - Optimistic UI updates
+ * - Unread message badge
+ * - Auto-scroll to latest message
+ * - Connection status indicator
+ */
+
+import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, ChevronDown, Send, X, Loader2, Headphones } from "lucide-react";
+import { MessageCircle, ChevronDown, Send, X, Loader2, Headphones, Wifi, WifiOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSupportChatStore } from "@/stores/support-chat.store";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3000/api';
+/**
+ * Format timestamp to Vietnamese locale time
+ * Returns '-' for null/undefined/invalid dates (e.g. optimistic temp messages)
+ */
+function formatTime(dateString: string | undefined | null): string {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleTimeString('vi-VN', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+}
 
-type Message = {
-  id: string;
-  sender_type: 'customer' | 'admin';
-  sender_name?: string;
-  content: string;
-  created_at: string;
-  is_read: boolean;
-};
-
-type Conversation = {
-  id: string;
-  status: 'open' | 'closed' | 'pending';
-  messages?: Message[];
-  last_message?: string;
-  last_message_at?: string;
-  unread_count?: number;
-};
-
-const getAuthToken = async () => {
-  if (typeof window !== 'undefined') {
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    if (supabaseUrl && supabaseAnonKey) {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey);
-      const { data } = await supabase.auth.getSession();
-      return data.session?.access_token || null;
-    }
-  }
-  return null;
-};
-
-const SupportChat = () => {
-  const { isAuthenticated, user } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
-  const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
-  
+const SupportChat: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [input, setInput] = useState("");
 
-  // Scroll to bottom
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // Get state and actions from store
+  const {
+    conversation,
+    messages,
+    unreadCount,
+    loading,
+    sending,
+    error,
+    isOpen,
+    connectionStatus,
+    initialize,
+    sendMessage,
+    openChat,
+    closeChat,
+    toggleChat,
+    reset,
+  } = useSupportChatStore();
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Fetch or create conversation
-  const fetchConversation = useCallback(async () => {
-    if (!isAuthenticated) return;
-    
-    try {
-      const token = await getAuthToken();
-      if (!token) return;
-
-      // Get existing conversation
-      const response = await fetch(`${API_BASE_URL}/conversations/my`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.id) {
-          setConversation(data);
-          setMessages(data.messages || []);
-          // Check for unread messages from admin
-          const unreadFromAdmin = (data.messages || []).some(
-            (m: Message) => m.sender_type === 'admin' && !m.is_read
-          );
-          setHasUnread(unreadFromAdmin);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching conversation:', error);
-    }
-  }, [isAuthenticated]);
-
-  // Start new conversation
-  const startConversation = async () => {
-    if (!isAuthenticated) return null;
-    
-    try {
-      const token = await getAuthToken();
-      if (!token) return null;
-
-      const response = await fetch(`${API_BASE_URL}/conversations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ subject: 'Hỗ trợ khách hàng' }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setConversation(data);
-        return data;
-      }
-    } catch (error) {
-      console.error('Error starting conversation:', error);
-    }
-    return null;
-  };
-
-  // Fetch messages for a conversation
-  const fetchMessages = useCallback(async () => {
-    if (!conversation?.id || !isAuthenticated) return;
-    
-    try {
-      const token = await getAuthToken();
-      if (!token) return;
-
-      const response = await fetch(`${API_BASE_URL}/conversations/${conversation.id}/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data.messages || data || []);
-        
-        // Check for unread messages from admin
-        const unreadFromAdmin = (data.messages || data || []).some(
-          (m: Message) => m.sender_type === 'admin' && !m.is_read
-        );
-        setHasUnread(unreadFromAdmin);
-      }
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
-  }, [conversation?.id, isAuthenticated]);
-
-  // Initial load
+  // Initialize chat when authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      fetchConversation();
+      initialize();
+    } else {
+      reset();
     }
-  }, [isAuthenticated, fetchConversation]);
 
-  // Poll for new messages when chat is open
+    // Cleanup on unmount
+    return () => {
+      useSupportChatStore.getState().unsubscribe();
+    };
+  }, [isAuthenticated, initialize, reset]);
+
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
-    if (isOpen && conversation?.id && isAuthenticated) {
-      fetchMessages();
-      
-      // Poll every 10 seconds
-      pollIntervalRef.current = setInterval(fetchMessages, 10000);
-      
-      return () => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-        }
-      };
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [isOpen, conversation?.id, isAuthenticated, fetchMessages]);
+  }, [messages]);
 
-  // Mark messages as read when opening chat
-  useEffect(() => {
-    if (isOpen && conversation?.id && hasUnread && isAuthenticated) {
-      const markAsRead = async () => {
-        try {
-          const token = await getAuthToken();
-          if (!token) return;
-
-          await fetch(`${API_BASE_URL}/conversations/${conversation.id}/read`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          setHasUnread(false);
-        } catch (error) {
-          console.error('Error marking as read:', error);
-        }
-      };
-      markAsRead();
-    }
-  }, [isOpen, conversation?.id, hasUnread, isAuthenticated]);
-
-  // Toggle chat popup
-  const handleToggle = () => {
-    setIsOpen(!isOpen);
-  };
-
-  // Send message
+  // Handle send message
   const handleSend = async () => {
-    if (!input.trim() || isSending || !isAuthenticated) return;
+    const trimmedInput = input.trim();
+    if (!trimmedInput || sending) return;
 
-    let convId = conversation?.id;
+    // Clear input immediately for better UX
+    setInput("");
     
-    // Create conversation if doesn't exist
-    if (!convId) {
-      const newConv = await startConversation();
-      if (!newConv?.id) return;
-      convId = newConv.id;
-    }
-
-    setIsSending(true);
-
-    try {
-      const token = await getAuthToken();
-      if (!token) return;
-
-      const response = await fetch(`${API_BASE_URL}/conversations/${convId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content: input.trim() }),
-      });
-
-      if (response.ok) {
-        const newMessage = await response.json();
-        setMessages(prev => [...prev, newMessage]);
-        setInput("");
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-    } finally {
-      setIsSending(false);
-    }
+    await sendMessage(trimmedInput);
   };
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('vi-VN', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+  // Handle key press (Enter to send)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   // Don't render if not authenticated
@@ -267,14 +123,29 @@ const SupportChat = () => {
                 <div>
                   <span className="font-semibold text-sm">Hỗ trợ khách hàng</span>
                   <div className="text-xs opacity-90 flex items-center gap-1">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span>Sẵn sàng hỗ trợ</span>
+                    {/* Connection status indicator */}
+                    {connectionStatus === 'connected' ? (
+                      <>
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                        <span>Đã kết nối</span>
+                      </>
+                    ) : connectionStatus === 'connecting' ? (
+                      <>
+                        <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                        <span>Đang kết nối...</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                        <span>Sẵn sàng hỗ trợ</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
               <button 
-                onClick={handleToggle}
+                onClick={closeChat}
                 className="p-2 rounded-full hover:bg-white/20 transition-all"
                 title="Đóng"
               >
@@ -284,7 +155,20 @@ const SupportChat = () => {
 
             {/* Chat Body */}
             <div className="flex-grow overflow-y-auto bg-gray-50 px-3 py-4">
-              {messages.length === 0 ? (
+              {/* Error message */}
+              {error && (
+                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 text-center">
+                  {error}
+                </div>
+              )}
+
+              {/* Loading state */}
+              {loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+                </div>
+              ) : messages.length === 0 ? (
+                /* Empty state */
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
                   <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
                     <Headphones className="w-8 h-8 text-green-600" />
@@ -295,29 +179,41 @@ const SupportChat = () => {
                   </p>
                 </div>
               ) : (
+                /* Messages list */
                 <>
                   {messages.map((msg) => {
-                    const isCustomer = msg.sender_type === 'customer';
+                    const isCustomer = msg.sender_role === 'user';
+                    const isTemp = msg._temp;
+
                     return (
                       <div 
                         key={msg.id} 
                         className={`flex mb-3 ${isCustomer ? "justify-end" : "justify-start"}`}
                       >
                         <div className={`flex flex-col max-w-[85%] ${isCustomer ? "items-end" : "items-start"}`}>
+                          {/* Admin name label */}
                           {!isCustomer && (
                             <span className="text-xs text-gray-500 mb-1 font-medium">
-                              {msg.sender_name || 'Nhân viên hỗ trợ'}
+                              {msg.sender?.full_name || 'Nhân viên hỗ trợ'}
                             </span>
                           )}
+                          
+                          {/* Message bubble */}
                           <div className={`px-4 py-2 rounded-2xl ${
                             isCustomer 
-                              ? 'bg-green-600 text-white rounded-br-md' 
+                              ? `bg-green-600 text-white rounded-br-md ${isTemp ? 'opacity-70' : ''}` 
                               : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md'
                           }`}>
-                            <span className="text-sm whitespace-pre-wrap">{msg.content}</span>
+                            <span className="text-sm whitespace-pre-wrap">{msg.message}</span>
                           </div>
-                          <span className="text-xs text-gray-400 mt-1">
+                          
+                          {/* Timestamp */}
+                          <span className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                             {formatTime(msg.created_at)}
+                            {/* Sending indicator for temp messages */}
+                            {isTemp && (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            )}
                           </span>
                         </div>
                       </div>
@@ -325,17 +221,6 @@ const SupportChat = () => {
                   })}
                   <div ref={messagesEndRef} />
                 </>
-              )}
-              
-              {/* Loading indicator */}
-              {isLoading && (
-                <div className="flex justify-start mb-3">
-                  <div className="flex space-x-1 p-3 bg-white rounded-lg border border-gray-200">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  </div>
-                </div>
               )}
             </div>
 
@@ -345,30 +230,26 @@ const SupportChat = () => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
+                onKeyDown={handleKeyDown}
                 placeholder="Nhập tin nhắn..."
-                disabled={isSending}
+                disabled={sending}
+                maxLength={5000}
                 className={`h-10 flex-1 px-4 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all text-sm ${
-                  isSending ? 'bg-gray-100 cursor-not-allowed' : 'bg-gray-50 hover:bg-white'
+                  sending ? 'bg-gray-100 cursor-not-allowed' : 'bg-gray-50 hover:bg-white'
                 }`}
               />
               
               <button 
                 className={`p-2.5 rounded-full transition-all ${
-                  isSending || !input.trim()
+                  sending || !input.trim()
                     ? 'text-gray-300 cursor-not-allowed' 
                     : 'text-white bg-green-600 hover:bg-green-700'
                 }`} 
                 onClick={handleSend} 
-                disabled={isSending || !input.trim()}
+                disabled={sending || !input.trim()}
                 title="Gửi"
               >
-                {isSending ? (
+                {sending ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
                   <Send size={18} />
@@ -381,12 +262,14 @@ const SupportChat = () => {
 
       {/* Chat Icon Button */}
       <button
-        onClick={handleToggle}
+        onClick={toggleChat}
         className="fixed bottom-5 right-5 z-[9999] bg-green-600 text-white p-3 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-all"
       >
-        {/* Unread indicator */}
-        {hasUnread && !isOpen && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold animate-pulse" />
+        {/* Unread indicator badge */}
+        {unreadCount > 0 && !isOpen && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-xs font-bold animate-pulse px-1">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         )}
         
         <AnimatePresence mode="wait">

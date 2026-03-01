@@ -242,7 +242,137 @@ export interface UIState {
   reset: () => void;
 }
 
-// ==================== CHAT STORE TYPES ====================
+// ==================== SUPPORT CHAT STORE TYPES ====================
+// For customer support chat (realtime 1-on-1 with admin)
+
+/**
+ * Chat message in a support conversation
+ */
+export interface SupportChatMessage {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  sender_role: 'user' | 'admin';
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  // Populated from join
+  sender?: {
+    id: string;
+    user_id: string;
+    full_name: string | null;
+    email: string | null;
+    avatar_url: string | null;
+    role?: string;
+  };
+  // For optimistic updates
+  _temp?: boolean;
+  _tempId?: string;
+}
+
+/**
+ * Customer's conversation with admin
+ */
+export interface SupportConversation {
+  id: string;
+  user_id: string;
+  last_message: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  status: 'active' | 'resolved' | 'archived';
+  created_at: string;
+  updated_at: string;
+  // Populated from join (for admin view)
+  user?: {
+    id: string;
+    user_id: string;
+    full_name: string | null;
+    email: string | null;
+    avatar_url: string | null;
+  };
+}
+
+/**
+ * Connection status for realtime
+ */
+export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
+
+/**
+ * Customer support chat state
+ */
+export interface SupportChatState {
+  // State
+  conversation: SupportConversation | null;
+  messages: SupportChatMessage[];
+  unreadCount: number;
+  loading: boolean;
+  sending: boolean;
+  error: string | null;
+  isOpen: boolean;
+  connectionStatus: ConnectionStatus;
+  isSubscribed: boolean;
+
+  // Actions
+  initialize: () => Promise<void>;
+  fetchConversation: () => Promise<void>;
+  fetchMessages: () => Promise<void>;
+  sendMessage: (content: string) => Promise<SupportChatMessage | null>;
+  markAsRead: () => Promise<void>;
+  openChat: () => void;
+  closeChat: () => void;
+  toggleChat: () => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  reset: () => void;
+  
+  // Realtime
+  subscribe: () => void;
+  unsubscribe: () => void;
+}
+
+/**
+ * Admin chat panel state
+ */
+export interface AdminChatState {
+  // State
+  conversations: SupportConversation[];
+  selectedConversation: SupportConversation | null;
+  messages: SupportChatMessage[];
+  unreadCount: number;
+  loading: boolean;
+  loadingMessages: boolean;
+  sending: boolean;
+  error: string | null;
+  connectionStatus: ConnectionStatus;
+  isSubscribed: boolean;
+  
+  // Pagination
+  page: number;
+  totalPages: number;
+  
+  // Filters
+  statusFilter: string | null;
+  searchQuery: string;
+
+  // Actions
+  fetchConversations: (page?: number) => Promise<void>;
+  selectConversation: (conversation: SupportConversation | null) => Promise<void>;
+  fetchMessages: (conversationId: string, _token?: number) => Promise<void>;
+  sendMessage: (conversationId: string, content: string) => Promise<SupportChatMessage | null>;
+  markAsRead: (conversationId: string) => Promise<void>;
+  updateStatus: (conversationId: string, status: 'active' | 'resolved' | 'archived') => Promise<void>;
+  setStatusFilter: (status: string | null) => void;
+  setSearchQuery: (query: string) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  reset: () => void;
+  
+  // Realtime
+  subscribe: () => void;
+  unsubscribe: () => void;
+}
+
+// ==================== LEGACY CHAT TYPES (AI Chat - kept for compatibility) ====================
 
 export interface ChatMessage {
   id: string;

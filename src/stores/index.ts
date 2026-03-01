@@ -62,7 +62,7 @@ export {
   useSearch,
 } from './ui.store';
 
-// Chat Store
+// Chat Store (for AI chat - legacy)
 export {
   useChatStore,
   useConversations,
@@ -74,6 +74,12 @@ export {
   useIsChatOpen,
   useChatActions,
 } from './chat.store';
+
+// Support Chat Store (customer-side realtime chat)
+export { useSupportChatStore } from './support-chat.store';
+
+// Admin Chat Store (admin-side realtime chat)
+export { useAdminChatStore } from './admin-chat.store';
 
 // Favorites Store
 export {
@@ -130,6 +136,7 @@ export async function resetAllStores() {
   const { useOrderStore } = await import('./order.store');
   const { useUIStore } = await import('./ui.store');
   const { useChatStore } = await import('./chat.store');
+  const { useSupportChatStore } = await import('./support-chat.store');
   const { useFavoritesStore } = await import('./favorites.store');
   const { useAddressStore } = await import('./address.store');
 
@@ -139,6 +146,7 @@ export async function resetAllStores() {
   useOrderStore.getState().reset();
   // Don't reset UI store theme preference
   useChatStore.getState().reset();
+  useSupportChatStore.getState().reset();
   useFavoritesStore.getState().reset();
   useAddressStore.getState().reset();
 }
